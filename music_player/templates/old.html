@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Song Player</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+        }
+        h2 {
+            font-size: 18px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 10px 0;
+        }
+        .play-button {
+            display: inline-block;
+            padding: 10px;
+            border: 1px solid #333;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .play-button:hover {
+            background-color: #333;
+            color: #fff;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        #shuffle-button, #next-song-button, #previous-button, #play-pause-button {
+            padding: 10px 20px;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 0 10px;
+        }
+        #shuffle-button:hover, #next-song-button:hover, #previous-button:hover, #play-pause-button:hover {
+            background-color: #444;
+        }
+        #progress-bar-container {
+            width: 80%;
+            margin: 20px auto;
+            background-color: #ccc;
+            border-radius: 5px;
+            height: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        #progress-bar {
+            background-color: #333;
+            height: 100%;
+            width: 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #timer {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Song Player</h1>
+    <h2>Currently Playing:</h2>
+    <p id="current-song-title">No song playing</p>
+    <div id="controls">
+        <button id="shuffle-button">Shuffle</button>
+        <button id="previous-button">Previous Song</button>
+        <button id="play-pause-button">Play</button>
+        <button id="next-song-button">Next Song</button>
+    </div>
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+    <div id="timer">0:00 / 0:00</div>
+    <ul>
+        {% for song in songs %}
+        <li>
+            <a href="#" class="play-button" data-song-index="{{ loop.index0 }}">{{ song }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <audio id="audio-player" controls style="display: none;"></audio>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            let audioPlayer = document.getElementById("audio-player");
+            let playButtons = document.querySelectorAll(".play-button");
+            let currentSongTitle = document.getElementById("current-song-title");
+            let playPauseButton = document.getElementById("play-pause-button");
+            let progressBar = document.getElementById("progress-bar");
+            let currentSongIndex = -1;
+
+            function updateCurrentSongTitle(songIndex) {
+                if (songIndex >= 0 && songIndex < playButtons.length) {
+                    let songTitle = playButtons[songIndex].textContent;
+                    currentSongTitle.textContent = songTitle;
+                } else {
+                    currentSongTitle.textContent = "No song playing";
+                }
+            }
+
+            playButtons.forEach(function (button) {
+                button.addEventListener("click", function () {
+                    let songIndex = parseInt(button.getAttribute("data-song-index"));
+                    if (currentSongIndex !== songIndex) {
+                        currentSongIndex = songIndex;
+                        audioPlayer.src = "/play?song_index=" + songIndex;
+                        audioPlayer.load();
+                        audioPlayer.play();
+                        updateCurrentSongTitle(songIndex);
+                        playPauseButton.textContent = "Pause";
+                    } else if (audioPlayer.paused) {
+                        audioPlayer.play();
+                        playPauseButton.textContent = "Pause";
+                    } else {
+                        audioPlayer.pause();
+                        playPauseButton.textContent = "Play";
+                    }
+                });
+            });
+
+            playPauseButton.addEventListener("click", function () {
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                    playPauseButton.textContent = "Pause";
+                } else {
+                    audioPlayer.pause();
+                    playPauseButton.textContent = "Play";
+                }
+            });
+
+            document
+                .getElementById("previous-button")
+                .addEventListener("click", function () {
+                    if (currentSongIndex !== -1) {
+                        currentSongIndex =
+                            (currentSongIndex - 1 + playButtons.length) %
+                            playButtons.length;
+                        audioPlayer.src = "/play?song_index=" + currentSongIndex;
+                        audioPlayer.load();
+                        audioPlayer.play();
+                        updateCurrentSongTitle(currentSongIndex);
+                        playPauseButton.textContent = "Pause";
+                    }
+                });
+
+            document
+                .getElementById("next-song-button")
+                .addEventListener("click", function () {
+                    if (currentSongIndex !== -1) {
+                        currentSongIndex = (currentSongIndex + 1) % playButtons.length;
+                        audioPlayer.src = "/play?song_index=" + currentSongIndex;
+                        audioPlayer.load();
+                        audioPlayer.play();
+                        updateCurrentSongTitle(currentSongIndex);
+                        playPauseButton.textContent = "Pause";
+                    }
+                });
+
+            document
+                .getElementById("shuffle-button")
+                .addEventListener("click", function () {
+                    let currentIndex = currentSongIndex;
+                    fetch("/shuffle", {
+                        method: "POST",
+                    })
+                        .then((response) => response.json())
+                        .then((data) => {
+                            currentSongIndex = currentIndex;
+                            location.reload();
+                        });
+                });
+
+            audioPlayer.addEventListener("ended", function () {
+                currentSongIndex = -1;
+                currentSongTitle.textContent = "No song playing";
+                playPauseButton.textContent = "Play";
+            });
+
+            audioPlayer.addEventListener("timeupdate", function () {
+                let currentTime = audioPlayer.currentTime;
+                let duration = audioPlayer.duration;
+                let progress = (currentTime / duration) * 100;
+                progressBar.style.width = progress + "%";
+            });
+        });
+    </script>
+</body>
+</html>
+
